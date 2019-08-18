@@ -69,7 +69,7 @@ typedef struct _MsgPackagingItem {
 typedef struct _MsgHeader {
     WORD              msgId;
     MsgBodyProperties msgBodyProperties;
-    BCD               terminalPhone[6];
+    char              terminalPhone[20];
     WORD              flowId;
     MsgPackagingItem  msgPackagingItem; 
 } MsgHeader;
@@ -88,9 +88,9 @@ typedef struct _CommonRespMsgBody {
 typedef struct _TerminalRegisterMsgBody {
     WORD provinceId;
     WORD cityId;
-    BYTE manufacturerId[5];
-    BYTE terminalType[20];
-    BYTE terminalId[7];
+    char manufacturerId[10];
+    char terminalType[10];
+    char terminalId[10];
     ColorCode licensePlateColor;
     char licensePlate[10]; 
 } TerminalRegisterMsgBody;
@@ -111,7 +111,7 @@ ERROR DoEscapeForReceive(const BYTE rawBinarySeq[], BYTE binarySeq[], const int 
 ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen, const int binarySeqLen);
 
 // 解析相关函数
-BOOL Validate(BYTE rawBinarySeq[], const int len);
+BOOL Validate(const BYTE rawBinarySeq[], const int len);
 ERROR ParseBinarySeq(const BYTE rawBinarySeq[], PackageData* packageData, const int len);
 ERROR ToBinarySeq(const PackageData* packegeData, BYTE binarySeq[], const int len);
 ERROR SetCheckSum(BYTE binarySeq[], const int len);

@@ -1,4 +1,6 @@
 #include <jtt808.h>
+#include <string.h>
+#include <stdlib.h>
 
 /**
  * 检查是否只包含连个标识位，如果包含的标识位不是两个（0，1或者不止两个），则这条信息是非法的。
@@ -16,6 +18,67 @@ static ERROR validatedIdentifierBits(const BYTE rawBinarySeq[], const int rawbin
         }
     }
     return 2 == total ? ERR_NONE : ERR_INVALIDATE_MSG;
+}
+/**
+ *  返回标识位的索引
+ * @param rawBinarySeq 转义前的原始二进制序列
+ * @param len          rawBinarySeq序列数组长度
+ * @param startIndex   标识位头部索引
+ * @param endIndex     标识位尾部索引
+ * @return ERROR        错误类型。
+ */
+static ERROR searchForIdentifierBitsStartAndEndIndex(const BYTE rawBinarySeq[], const int len, int *startIndex, int *endIndex) {
+    int i = 0, j = len - 1;
+    ERROR err = ERR_NONE;
+
+    err = validatedIdentifierBits(rawBinarySeq, rawbinarySeqLen);
+    if (ERR_NONE != err) {
+        return err;
+    }
+
+    for (i = 0; i < len; i++) {
+        if (0x7e == rawBinarySeq[i]) {
+            *startIndex = i;
+            break;
+        }
+    }
+
+    for (j = len - 1; j >= 0; j ++) {
+        if (0x7e == rawBinarySeq[j]) {
+            *endIndex = j;
+            break;
+        }
+    }
+    return ERR_NONE;
+}
+
+/**
+ * 查找并写入消息体的开始下标
+ * @param binarySeq 转义后的二进制序列
+ * @param startIndex 消息体索引
+ * @return ERROR      错误类型。
+ */
+static ERROR searchForBodyStartIndex(const BYTE binarySeq[], int * const startIndex) {
+    /// 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
+    /// 11,12-消息流水号; 
+    /// 前提：有消息包封装项 =》13,14,15,16-消息包封装项; 
+    /// 17至检验码前一字节-消息体
+    /// 前提：无消息包封装项 13至检验码前一字节-消息体
+
+    int hasSubpackage = 0;
+    int startIndex = 0;
+    /// 消息体属性占两个字节，高字节的第6位是分包信息位
+    BYTE high = binarySeq[3];
+
+    hasSubpackage = (high >> 5) & 1;
+
+    if (hasSubpackage) {
+        *startIndex = 17;
+    } else {
+        *startIndex = 13;
+    }
+
+    return ERR_NONE;
 }
 
 // 转义相关函数
@@ -79,6 +142,28 @@ ERROR DoEscapeForReceive(const BYTE rawBinarySeq[], BYTE binarySeq[], const int 
  * @return ERROR 错误类型。
  */
 ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen, const int binarySeqLen) {
+    int i = 0, j = 0;
+
+    if (rawbinarySeqLen > binarySeqLen ) {
+        return ERR_LENGTH_TOO_SHORT;
+    }
+
+    binarySeq[j++] = 0x7e; ///标识位头
+    for (int i = 0; i < rawbinarySeqLen; i++) {
+        if (0x7e == rawBinarySeq[i]) {
+            binarySeq[j++] = 0x7d;
+            binarySeq[j++] = 0x02;
+            continue;
+        }
+
+        if (0x7d == rawBinarySeq[i]) {
+            binarySeq[j++] = 0x7d;
+            binarySeq[j++] = 0x01;
+            continue;
+        }
+        binarySeq[j++] = rawBinarySeq[i];
+    }
+    binarySeq[j++] = 0x7e; ///标识位尾
     return ERR_NONE;
 }
 
@@ -89,8 +174,29 @@ ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int raw
  * @param len rawBinarySeq数组长度
  * @return BOOL值，TRUE表示合法
  */
-BOOL Validate(BYTE rawBinarySeq[], const int len) {
-    return TRUE;
+BOOL Validate(const BYTE rawBinarySeq[], const int len) {
+    int startIndex = 0, endIndex = 0;
+    int i = 0;
+    int checkSum = 0, calculateSum = 0;
+
+    searchForIdentifierBitsStartAndEndIndex(rawBinarySeq, len, &startIndex, &endIndex);
+
+    if (0 >= endIndex || len - 1 =< startIndex || startIndex > endIndex) {
+        return FALSE;
+    }
+
+    checkSum = rawBinarySeq[endIndex - 1];
+
+    /// 恒等率，X ^ 0 == X 
+    for (i = startIndex + 1; i < endIndex - 1; i++) {
+        calculateSum ^= rawBinarySeq[i];
+    }
+    /// 归零率, X ^ X == 0
+    if (checkSum ^ calculateSum == 0) {
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /**
@@ -123,17 +229,63 @@ ERROR ToBinarySeq(const PackageData* packegeData, BYTE binarySeq[], const int le
  * @return ERROR     错误类型。
  */
 ERROR SetCheckSum(BYTE binarySeq[], const int len) {
+    int startIndex = 0, endIndex = 0;
+    int i = 0;
+
+    searchForIdentifierBitsStartAndEndIndex(rawBinarySeq, len, &startIndex, &endIndex);
+
+    if (0 >= endIndex || len - 1 =< startIndex || startIndex > endIndex) {
+        return ERR_INVALIDATE_MSG;
+    }
+    /// binarySeq[endIndex - 1] 即为校验码所在位
+    /// 利用恒等率，必须初始化该位为0 
+    binarySeq[endIndex - 1] = 0;
+
+    for (i = startIndex + 1; i < endIndex - 1; i++) {
+        binarySeq[endIndex - 1] ^= binarySeq[i];
+    }
     return ERR_NONE;
 }
 
 /**
  * 将终端手机号转换成BCD码并写入binarySeq序列中。
+ * （暂时不支持港澳台地区的手机号，作者不了解这些地区的手机号规则，
+ * 知道详情的朋友可以给作者发邮件 @email crazypandas@aliyun.com 或者提交Issue）
  * @param binarySeq   未计算校验码也未填写终端号码的二进制序列
  * @param phoneNumber 手机号字符串
- * @param len binarySeq数组长度
  * @return ERROR     错误类型
  */
-ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber, const int len) {
+//  * @param len binarySeq数组长度
+ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber/*, const int len*/) {
+    int phoneNumberLen = 0;
+    char *thePhoneNumber = NULL;
+    int i = 0;
+    BYTE high = 0, low = 0;
+    /// 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
+    int phoneNumberIndex = 5;
+
+    phoneNumberLen = strlen(phoneNumber);
+    /// 中国大陆地区手机号目前(2019)是11位，不足12位补零 
+    if (11 != phoneNumberLen) {
+        return ERR_INVALIDATE_MSG;
+    }
+    thePhoneNumber = (char*) malloc(sizeof(char) * (phoneNumber + 2));
+
+    /// 中国大陆地区手机号目前(2019)是11位，不足12位补零 
+    strncpy(thePhoneNumber, "0", 1);
+    strncat(thePhoneNumber, phoneNumber, strlen(phoneNumber));
+
+    for (i = 0; i < strlen(thePhoneNumber); i+=2) {
+        high = thePhoneNumber[i] - '0';
+        low = thePhoneNumber[i+1] - '0';
+        
+        binarySeq[phoneNumberIndex++] = ((high << 4) | low);
+    }
+
+    if (NULL != thePhoneNumber) {
+        free(thePhoneNumber);
+        thePhoneNumber = NULL;
+    }
     return ERR_NONE;
 }
 
@@ -141,11 +293,22 @@ ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber, const int len
  * 将BCD码转换成终端手机号并写入phoneNumber字符数组中
  * @param binarySeq   待解析的二进制序列
  * @param phoneNumber 手机号字符串
- * @param binarySeqLen binarySeq数组长度
- * @param phoneNumberLen phoneNumber数组长度
  * @return ERROR     错误类型
  */
-ERROR DecodePhoneNumber(BYTE binarySeq[], char phoneNumber[], const int binarySeqLen, const int phoneNumberLen) {
+//  * @param binarySeqLen binarySeq数组长度
+//  * @param phoneNumberLen phoneNumber数组长度
+ERROR DecodePhoneNumber(const BYTE binarySeq[], char phoneNumber[]/*, const int binarySeqLen, const int phoneNumberLen*/) {
+    /// 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
+    int phoneNumberIndex = 5;
+    BYTE high = 0, low = 0;
+    phoneNumber[0] = '\0';
+    for (phoneNumberIndex = 5; phoneNumberIndex <= 10; phoneNumberIndex++) {
+        high = (binarySeq[phoneNumberIndex] & 0xf0) >> 4;
+        low  = binarySeq[phoneNumberIndex] & 0x0f;
+        strncat(phoneNumber, high + '0', 1);
+        strncat(phoneNumber, low + '0', 1);
+    }
+    
     return ERR_NONE;
 }
 
@@ -153,10 +316,42 @@ ERROR DecodePhoneNumber(BYTE binarySeq[], char phoneNumber[], const int binarySe
  * 对crmb指向的通用应答消息体进行编码，写入binarySeq字节数组。
  * @param crmb       指向通用应答消息体的指针
  * @param binarySeq  要写入的二进制字节数组
- * @param len        binarySeq数组长度
  * @return ERROR     错误类型
  */
-ERROR EncodeForCRMB(const CommonRespMsgBody *crmb, BYTE binarySeq[], const int len) {
+//  * @param len        binarySeq数组长度
+ERROR EncodeForCRMB(const CommonRespMsgBody *crmb, BYTE binarySeq[]/*, const int len*/) {
+    /// 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
+    /// 11,12-消息流水号; 
+    /// 前提：有消息包封装项 =》13,14,15,16-消息包封装项; 
+    /// 17至检验码前一字节-消息体
+    /// 前提：无消息包封装项 13至检验码前一字节-消息体
+
+    // int hasSubpackage = 0;
+    int startIndex = 0;
+    /// 消息体属性占两个字节，高字节的第6位是分包信息位
+    BYTE high = binarySeq[3];
+
+    // hasSubpackage = (high >> 5) & 1;
+
+    // if (hasSubpackage) {
+    //     startIndex = 17;
+    // } else {
+    //     startIndex = 13;
+    // }
+
+    searchForBodyStartIndex(binarySeq, &startIndex);
+
+    /// 应答流水号 startIndex ~ startIndex + 1;
+    binarySeq[startIndex] = (BYTE)((crmb->replyFlowId >> 8) & 0xff);
+    binarySeq[startIndex + 1] = (BYTE)(crmb->replyFlowId & 0xff);
+
+    ///  应答 ID startIndex+2 ~ startIndex+3；
+    binarySeq[startIndex + 2] = (BYTE)((crmb->replyId) >> 8） & 0xff);
+    binarySeq[startIndex + 3] = (BYTE)(crmb->replyId & 0xff);
+
+    /// 结果 startIndex+4
+    binarySeq[startIndex + 3] = (BYTE)(crmb->replyCode & 0xff);
+
     return ERR_NONE;
 }
 
@@ -164,10 +359,39 @@ ERROR EncodeForCRMB(const CommonRespMsgBody *crmb, BYTE binarySeq[], const int l
  * 对binarySeq字节数组进行编码，写入crmb指向的通用应答消息体
  * @param crmb      指向通用应答消息体的指针
  * @param binarySeq 要读取解码的二进制字节数组
- * @param len       binarySeq数组长度
  * @return ERROR     错误类型
  */
-ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[], const int len) {
+//  * @param len       binarySeq数组长度
+ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[]/*, const int len*/) {
+    /// 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
+    /// 11,12-消息流水号; 
+    /// 前提：有消息包封装项 =》13,14,15,16-消息包封装项; 
+    /// 17至检验码前一字节-消息体
+    /// 前提：无消息包封装项 13至检验码前一字节-消息体
+
+    // int hasSubpackage = 0;
+    int startIndex = 0;
+    /// 消息体属性占两个字节，高字节的第6位是分包信息位
+    BYTE high = binarySeq[3];
+
+    // hasSubpackage = (high >> 5) & 1;
+    // if (hasSubpackage) {
+    //     startIndex = 17;
+    // } else {
+    //     startIndex = 13;
+    // }
+
+    searchForBodyStartIndex(binarySeq, &startIndex);
+
+    /// 应答流水号 startIndex ~ startIndex + 1;
+    crmb->replyFlowId = (WORD)(((binarySeq[startIndex] << 8) & 0xff ) + (binarySeq[startIndex+1] & 0xff));
+
+    ///  应答 ID startIndex+2 ~ startIndex+3；
+    crmb->replyId = (WORD)(((binarySeq[startIndex+2] << 8) & 0xff ) + (binarySeq[startIndex+3] & 0xff));
+
+    /// 结果 startIndex+4
+    crmb->replyCode = binarySeq[startIndex + 3] & 0xff ;
+
     return ERR_NONE;
 }
 
@@ -179,6 +403,19 @@ ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[], const int l
  * @return ERROR     错误类型
  */
 ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[], const int len) {
+    // int startIndex = 0;
+    // searchForBodyStartIndex(binarySeq, &startIndex);
+
+    // /// startIndex~startIndex+1 -  省域 ID
+    // binarySeq[startIndex] = (BYTE)((crmb->provinceId >> 8) & 0xff);
+    // binarySeq[startIndex + 1] = (BYTE)(crmb->provinceId & 0xff);
+
+    // /// startIndex+2~startIndex+3 -  市县域 ID 
+    // binarySeq[startIndex + 2] = (BYTE)((crmb->cityId >> 8) & 0xff);
+    // binarySeq[startIndex + 3] = (BYTE)(crmb->cityId & 0xff);
+
+    // /// startIndex+4~startIndex+8 -  制造商 ID
+
     return ERR_NONE;
 }
 
@@ -190,5 +427,7 @@ ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[], const
  * @return ERROR    错误类型
  */
 ERROR DecodeForTRMRB(TerminalRegisterMsgRespBody *trmrb, const BYTE binarySeq[], const int len) {
+    // int startIndex = 0;
+    // searchForBodyStartIndex(binarySeq, &startIndex);
     return ERR_NONE;
 }

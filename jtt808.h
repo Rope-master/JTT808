@@ -48,6 +48,16 @@ enum RegisterReplyResult {
     RRR_NO_THE_TERMINAL             = 4
 };
 
+enum MsgId {
+    MI_ServerCommonReply            = 0x8001,
+    MI_TerminalCommonReply          = 0x0001,
+    MI_TerminalHeartbeat            = 0x0002,
+    MI_TerminalRegister             = 0x0100,
+    MI_TerminalRegisterReponseReply = 0x8100,
+    MI_TerminalLogoff               = 0x0003,
+    MI_TerminalAuthentication       = 0x0102
+
+};
 
 typedef unsigned char  BYTE;
 typedef unsigned short WORD;
@@ -55,10 +65,10 @@ typedef unsigned int   DWORD;
 typedef unsigned char  BCD;
 
 typedef struct _MsgBodyProperties {
-    BYTE           reservedBit[2];
+    BYTE           reservedBit;
     BOOL           hasSubPackage;
     EncryptionType encryptionType;
-    long           msgLenth;
+    int           msgLenth;
 } MsgBodyProperties;
 
 typedef struct _MsgPackagingItem {

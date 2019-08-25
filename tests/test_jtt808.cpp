@@ -92,3 +92,50 @@ BOOST_AUTO_TEST_CASE(_0x7e_0x7d_escape)
     BOOST_TEST_REQUIRE(expect == res, tt::per_element());
 }
 BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(EncodePhoneNumber_Test)
+BOOST_AUTO_TEST_CASE(should_encode_as_expect1)
+{
+    BYTE res[10] = {};
+    JTT_ERROR err = ERR_NONE;
+    BYTE expect[10] = {0x0, 0x0, 0x0, 0x0, /*01*/ 0x01, /*52*/ 0x52, /*77*/ 0x77,
+        /*36*/0x36, /*25*/0x25, /*81*/ 0x81
+    };
+
+    err = EncodePhoneNumber(res, "15277362581");
+    BOOST_TEST_REQUIRE(err == ERR_NONE);
+    BOOST_TEST_REQUIRE(expect == res, tt::per_element());
+}
+
+BOOST_AUTO_TEST_CASE(should_encode_as_expect2)
+{
+    BYTE res[10] = {};
+    JTT_ERROR err = ERR_NONE;
+    BYTE expect[10] = {0x0, 0x0, 0x0,0x0, /*01*/ 0x01, /*52*/ 0x52, /*77*/ 0x77,
+        /*36*/0x36, /*25*/0x25, /*81*/ 0x81
+    };
+    BOOST_TEST_REQUIRE(err == ERR_NONE);
+    EncodePhoneNumber(res, "015277362581");
+    BOOST_TEST_REQUIRE(expect == res, tt::per_element());
+}
+
+BOOST_AUTO_TEST_CASE(failed_because_invalidate_phone_number)
+{
+    JTT_ERROR err = ERR_NONE;
+    err = EncodePhoneNumber(NULL, "1");
+    BOOST_TEST_REQUIRE(err == ERR_INVALIDATE_PHONE);
+
+    err = ERR_NONE;
+    err = EncodePhoneNumber(NULL, "");
+    BOOST_TEST_REQUIRE(err == ERR_INVALIDATE_PHONE);
+
+    err = ERR_NONE;
+    err = EncodePhoneNumber(NULL, "152773625810000000000");
+    BOOST_TEST_REQUIRE(err == ERR_INVALIDATE_PHONE);
+
+    err = ERR_NONE;
+    err = EncodePhoneNumber(NULL, "ffgfd165.48-");
+    BOOST_TEST_REQUIRE(err == ERR_INVALIDATE_PHONE);
+}
+BOOST_AUTO_TEST_SUITE_END()
+

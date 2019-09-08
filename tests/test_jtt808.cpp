@@ -1,6 +1,6 @@
 #define BOOST_TEST_MODULE JTT808_TEST
 #include <boost/test/included/unit_test.hpp>
-#include <jtt808.h>
+#include "jtt808.h"
 
 namespace tt = boost::test_tools;
 
@@ -274,3 +274,78 @@ BOOST_AUTO_TEST_CASE(_should_encode_as_expect_with_subpackage2)
 
 BOOST_AUTO_TEST_SUITE_END()
 
+BOOST_AUTO_TEST_SUITE(DecodeForCRMB_Test)
+BOOST_AUTO_TEST_CASE(_should_decode_as_expect_without_subpackage1)
+{
+    CommonRespMsgBody crmb;
+    BYTE raw[20] = {0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0, 
+                //  10， 11，  12， 13， 14
+                    0x0, 0x0, 0x0, 0x1, 0x0,
+                    0x1};
+
+    DecodeForCRMB(&crmb,  raw);
+    BOOST_TEST_REQUIRE(crmb.replyFlowId == 1);
+    BOOST_TEST_REQUIRE(crmb.replyId     == 1);
+    BOOST_TEST_REQUIRE(crmb.replyCode   == CRR_SUCCESS);
+
+}
+BOOST_AUTO_TEST_CASE(_should_decode_as_expect_without_subpackage2)
+{
+    CommonRespMsgBody crmb;
+    BYTE raw[20] = {0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0, 
+                //  10， 11，  12， 13， 14
+                    0x0, 0x0, 0x0, 0x64, 0x0,
+                    0x64, 0x1};
+
+    DecodeForCRMB(&crmb,  raw);
+    BOOST_TEST_REQUIRE(crmb.replyFlowId == 100);
+    BOOST_TEST_REQUIRE(crmb.replyId     == 100);
+    BOOST_TEST_REQUIRE(crmb.replyCode   == CRR_FAILED);
+
+}
+BOOST_AUTO_TEST_CASE(_should_decode_as_expect_without_subpackage3)
+{
+    CommonRespMsgBody crmb;
+
+    BYTE raw[20] = {0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0, 
+                    0x0, 0x0, 0x0, 0x64, 0xff,
+                    0xff, 0x1};
+    DecodeForCRMB(&crmb,  raw);
+    BOOST_TEST_REQUIRE(crmb.replyFlowId == 100);
+    BOOST_TEST_REQUIRE(crmb.replyId     == 65535);
+    BOOST_TEST_REQUIRE(crmb.replyCode   == CRR_FAILED);
+
+}
+
+BOOST_AUTO_TEST_CASE(_should_decode_as_expect_with_subpackage1)
+{
+    CommonRespMsgBody crmb;
+
+    BYTE raw[30] = {0x0, 0x0, 0x24, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0,
+                //  15，  16  , 17 , 18, 19
+                    0x0, 0x0, 0x1, 0x0, 0x1};
+    DecodeForCRMB(&crmb,  raw);
+    BOOST_TEST_REQUIRE(crmb.replyFlowId == 1);
+    BOOST_TEST_REQUIRE(crmb.replyId     == 1);
+    BOOST_TEST_REQUIRE(crmb.replyCode   == CRR_SUCCESS);
+
+}
+BOOST_AUTO_TEST_CASE(_should_decode_as_expect_with_subpackage2)
+{
+    CommonRespMsgBody crmb;
+    BYTE raw[30] = {0x0, 0x0, 0x24, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0,
+                    0x0, 0x0, 0x0, 0x0, 0x0,
+                //  15，  16  , 17 , 18, 19
+                    0x0, 0x0, 0x64, 0xff, 0xff};
+    DecodeForCRMB(&crmb, raw);
+    BOOST_TEST_REQUIRE(crmb.replyFlowId == 100);
+    BOOST_TEST_REQUIRE(crmb.replyId     == 65535);
+    BOOST_TEST_REQUIRE(crmb.replyCode   == CRR_SUCCESS);
+}
+BOOST_AUTO_TEST_SUITE_END()

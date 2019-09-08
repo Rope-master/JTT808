@@ -1,26 +1,24 @@
 #ifndef JTT808_H
 #define JTT808_H
-
+#include <stdbool.h>
 /// 消息的最小长度，14字节(只有消息头的最短长度)
 #define MSG_MIN_LEN 14
 // 消息的最大长度，???字节
 // #define MSG_MAX_LEN 18
-
-enum ERROR {
+#ifdef __cplusplus
+extern  "C" {
+#endif
+enum JTT_ERROR {
     ERR_NONE             = 0,
     ERR_INVALIDATE_MSG   = 1,
-    ERR_LENGTH_TOO_SHORT = 2,
-    ERR_LENGTH_TOO_LONG  = 3
+    ERR_INVALIDATE_PHONE = 2,
+    ERR_LENGTH_TOO_SHORT = 3,
+    ERR_LENGTH_TOO_LONG  = 4
 };
 
 enum EncryptionType {
     NONE = 0,
     RSA  = 1
-};
-
-enum BOOL {
-    FALSE = 0,
-    TRUE  = 1
 };
 
 enum CommonReplyResult {
@@ -32,7 +30,7 @@ enum CommonReplyResult {
 };
 
 enum ColorCode {
-    CC_NONE    = 0,
+    CC_NO_COLOR    = 0,
     CC_BLUE    = 1,
     CC_YELLOW  = 2,
     CC_BLACK   = 3,
@@ -61,12 +59,12 @@ enum MsgId {
 
 typedef unsigned char  BYTE;
 typedef unsigned short WORD;
-typedef unsigned int   DWORD;
+// typedef unsigned int   DWORD;
 typedef unsigned char  BCD;
 
 typedef struct _MsgBodyProperties {
     BYTE           reservedBit;
-    BOOL           hasSubPackage;
+    bool           hasSubPackage;
     EncryptionType encryptionType;
     int           msgLenth;
 } MsgBodyProperties;
@@ -111,26 +109,24 @@ typedef struct _TerminalRegisterMsgRespBody {
     char replyToken[256]; 
 } TerminalRegisterMsgRespBody;
 
-#ifdef __cplusplus
-extern  "C" {
-#endif
+
 
 // 转义相关函数
 
-ERROR DoEscapeForReceive(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen, const int binarySeqLen);
-ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen, const int binarySeqLen);
+JTT_ERROR DoEscapeForReceive(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen/*, const int binarySeqLen*/);
+JTT_ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int rawbinarySeqLen, const int binarySeqLen);
 
 // 解析相关函数
-BOOL Validate(const BYTE rawBinarySeq[], const int len);
-ERROR ParseBinarySeq(const BYTE rawBinarySeq[], PackageData* packageData, const int len);
-ERROR ToBinarySeq(const PackageData* packegeData, BYTE binarySeq[], const int len);
-ERROR SetCheckSum(BYTE binarySeq[], const int len);
-ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber, const int len);
-ERROR DecodePhoneNumber(BYTE binarySeq[], char phoneNumber[], const int binarySeqLen, const int phoneNumberLen);
-ERROR EncodeForCRMB(const CommonRespMsgBody *crmb, BYTE binarySeq[], const int len);
-ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[], const int len);
-ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[], const int len);
-ERROR DecodeForTRMRB(TerminalRegisterMsgRespBody *trmrb, const BYTE binarySeq[], const int len);
+bool Validate(const BYTE rawBinarySeq[], const int len);
+JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], PackageData* packageData, const int len);
+JTT_ERROR EncodeForMsgHeader(const PackageData* packageData, BYTE binarySeq[]/*, const int len*/);
+JTT_ERROR SetCheckSum(BYTE binarySeq[], const int len);
+JTT_ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber/*, const int len*/);
+JTT_ERROR DecodePhoneNumber(const BYTE binarySeq[], char phoneNumber[]/*, const int binarySeqLen, const int phoneNumberLen*/);
+JTT_ERROR EncodeForCRMB(const CommonRespMsgBody *crmb, BYTE binarySeq[]/*, const int len*/);
+JTT_ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[]/*, const int len*/);
+JTT_ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[]/*, const int len*/);
+JTT_ERROR DecodeForTRMRB(TerminalRegisterMsgRespBody *trmrb, const BYTE binarySeq[]/*, const int len*/);
 
 
 #ifdef __cplusplus

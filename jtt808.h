@@ -96,17 +96,17 @@ typedef struct _CommonRespMsgBody {
 typedef struct _TerminalRegisterMsgBody {
     WORD provinceId;
     WORD cityId;
-    char manufacturerId[10];
-    char terminalType[10];
-    char terminalId[10];
+    BYTE manufacturerId[5];
+    BYTE terminalType[20];
+    BYTE terminalId[7];
     ColorCode licensePlateColor;
-    char licensePlate[10]; 
+    BYTE licensePlate[10]; 
 } TerminalRegisterMsgBody;
 
 typedef struct _TerminalRegisterMsgRespBody {
     WORD replyFlowId;
     RegisterReplyResult replyCode;
-    char replyToken[256]; 
+    BYTE replyToken[256]; 
 } TerminalRegisterMsgRespBody;
 
 

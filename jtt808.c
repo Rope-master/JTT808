@@ -55,36 +55,6 @@ static JTT_ERROR searchForIdentifierBitsStartAndEndIndex(const BYTE rawBinarySeq
     return ERR_NONE;
 }
 
-/**
- * @注意 发送时的编码函数均不可调用此函数，否正会出错。因为本函数默认二进制序列是有标识位的，但是编码的时候是没有标识位的
- * 查找并写入消息体的开始下标
- * @param binarySeq 转义后的二进制序列
- * @param startIndex 消息体索引
- * @return JTT_ERROR      错误类型。
- */
-static JTT_ERROR searchForBodyStartIndex(const BYTE binarySeq[], int * const startIndex) {
-    // 0-标识位; 1,2-消息ID; 3,4-消息体属性； 5,6,7,8,9,10-终端手机号
-    // 11,12-消息流水号; 
-    // 前提：有消息包封装项 =》13,14,15,16-消息包封装项; 
-    // 17至检验码前一字节-消息体
-    // 前提：无消息包封装项 13至检验码前一字节-消息体
-
-    int hasSubpackage = 0;
-    // 消息体属性占两个字节，高字节的第6位是分包信息位
-    BYTE high = binarySeq[3];
-
-    hasSubpackage = (high >> 5) & 1;
-
-    if (hasSubpackage) {
-        *startIndex = 17;
-    } else {
-        *startIndex = 13;
-    }
-
-    return ERR_NONE;
-}
-
-
 // 转义相关函数
 /**
  * 接收一个从服务端发来的原始二进制序列，
@@ -474,10 +444,15 @@ JTT_ERROR DecodeForCRMB(CommonRespMsgBody *crmb, const BYTE binarySeq[]/*, const
  */
 //  * @param len       binarySeq数组长度
 JTT_ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[]/*, const int len*/) {
-    int startIndex = 0;
     int i = 0, index = 0;
-    searchForBodyStartIndex(binarySeq, &startIndex);
-
+    // searchForBodyStartIndex(binarySeq, &startIndex);
+    int startIndex = 12;
+    // 消息体属性占两个字节，高字节的第6位是分包信息位
+    if ((binarySeq[2] >> 5) & 1) {
+        startIndex = 16;
+    }
+    // ‭2   +   2   +   5   +   20   +   7   +   1   +   10 =‬ 47
+    memset(binarySeq+startIndex, 0x00, 47);
     // startIndex~startIndex+1 -  省域 ID
     binarySeq[startIndex] = (BYTE)((trmb->provinceId >> 8) & 0xff);
     binarySeq[startIndex + 1] = (BYTE)(trmb->provinceId & 0xff);
@@ -487,21 +462,19 @@ JTT_ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[]/*,
     binarySeq[startIndex + 3] = (BYTE)(trmb->cityId & 0xff);
 
     // startIndex+4~startIndex+8 -  制造商 ID
-    memcpy(binarySeq+startIndex+4, trmb->manufacturerId, sizeof(trmb->manufacturerId));
+    memcpy(binarySeq+startIndex+4, trmb->manufacturerId, 5);
 
     // startIndex+9~ startIndex+28 - 终端型号
-    memset(binarySeq+startIndex+9, 0x00, 20);
-    memcpy(binarySeq+startIndex+9, trmb->terminalType, sizeof(trmb->terminalType));
+    memcpy(binarySeq+startIndex+9, trmb->terminalType, 20);
 
     // startIndex+29 ~ startIndex+35 - 终端 ID
-    memset(binarySeq+startIndex+29, 0x00, 7);
-    memcpy(binarySeq+startIndex+29, trmb->terminalId, sizeof(trmb->terminalId));
+    memcpy(binarySeq+startIndex+29, trmb->terminalId, 7);
     
     // startIndex+36 - 车牌颜色
     binarySeq[startIndex+36] = (BYTE)(trmb->licensePlateColor & 0xff);
 
-    // startIndex+37
-    memcpy(binarySeq+startIndex+37, trmb->licensePlate, sizeof(trmb->licensePlate));
+    // startIndex+37 - 车辆标识
+    memcpy(binarySeq+startIndex+37, trmb->licensePlate, 10);
     return ERR_NONE;
 }
 
@@ -513,10 +486,12 @@ JTT_ERROR EncodeForTRMB(const TerminalRegisterMsgBody *trmb, BYTE binarySeq[]/*,
  */
 //  * @param len       binarySeq数组长度
 JTT_ERROR DecodeForTRMRB(TerminalRegisterMsgRespBody *trmrb, const BYTE binarySeq[]/*, const int len*/) {
-    int startIndex = 0;
     int msgBodyLen = 0;
-
-    searchForBodyStartIndex(binarySeq, &startIndex);
+    int startIndex = 12;
+    // 消息体属性占两个字节，高字节的第6位是分包信息位
+    if ((binarySeq[2] >> 5) & 1) {
+        startIndex = 16;
+    }
     msgBodyLen = (int)(((binarySeq[2] & 0x03) << 8) + (binarySeq[3] & 0xff));
 
     // startIndex~startIndex+1 - 应答流水号
@@ -525,7 +500,7 @@ JTT_ERROR DecodeForTRMRB(TerminalRegisterMsgRespBody *trmrb, const BYTE binarySe
     // startIndex+2 - 结果
 
     trmrb->replyCode = (RegisterReplyResult)binarySeq[startIndex+2];
-
+    memset(trmrb->replyToken, 0, 256);
     if (RRR_SUCCESS == trmrb->replyCode) {
         memcpy(trmrb->replyToken, &binarySeq[startIndex+3], msgBodyLen - 3);
     }

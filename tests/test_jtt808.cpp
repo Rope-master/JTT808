@@ -432,3 +432,50 @@ BOOST_AUTO_TEST_CASE(_should_decode_as_expect_without_subpackage1_with_success_a
     BOOST_TEST_REQUIRE(trmrb.replyToken == token, tt::per_element());
 }
 BOOST_AUTO_TEST_SUITE_END()
+
+// BOOST_AUTO_TEST_SUITE(Workflow_Test_while_send)
+// BOOST_AUTO_TEST_CASE(register_message_test)
+// {
+//     PackageData data;
+//     TerminalRegisterMsgBody reg_body;
+//     BYTE msgBody[ML_BodyReg];
+//     BYTE manufacturerId[5] = {0x01,0x02,0x03,0x04,0x05};
+//     // ABCD-EFGH-IJKL-MNOP
+//     BYTE terminalType[20] = {
+//         0x41,0x42,0x43,0x44,0x2d,
+//         0x45,0x46,0x47,0x48,0x2d,
+//         0x49,0x4a,0x4b,0x4c,0x2d,
+//         0x4d,0x4e,0x4f,0x50};
+//         // ABC1234
+//     BYTE terminalId[7] = {0x41, 0x42, 0x43, 0x31, 0x32, 0x33, 0x34};
+//     // 鲁HC9999
+//     BYTE licensePlate[10] = {0xc2, 0xb3, 0x48, 0x43, 0x39, 0x39, 0x39, 0x39};
+
+//     BYTE rawbinarySeq[100]; //未转义未设置校验码的字节序列
+//     BYTE binarySeq[120];
+
+//     // http://www.mca.gov.cn/article/sj/tjyb/qgsj/2019/201909291543.html
+//     reg_body.provinceId     = 45;  //广西
+//     reg_body.cityId         = 300; //桂林
+//     reg_body.manufacturerId = manufacturerId;
+//     reg_body.terminalType   = terminalType;
+//     reg_body.terminalId     = terminalId;
+//     reg_body.licensePlateColor = CC_YELLOW;
+//     reg_body.licensePlate   = licensePlate;
+
+//     data.msgHeader.msgId = 1;
+//     data.msgHeader.terminalPhone = "15277362581";
+//     data.msgHeader.flowId = 1;
+//     data.msgBodyProperties.reservedBit = 0;
+//     data.msgBodyProperties.hasSubPackage = false;
+//     data.msgBodyProperties.encryptionType = RSA;
+//     data.msgBodyProperties.msgLenth = ML_BodyReg;
+//     data.msgBody = msgBody;
+
+//     EncodeForMsgHeader(&data, rawbinarySeq);
+//     EncodeForTRMB(&reg_body, rawbinarySeq);
+//     DoEscapeForSend(rawbinarySeq, binarySeq, ML_HeaderNoSub + ML_BodyReg + 1, sizeof(binarySeq)/sizeof(BYTE));
+//     SetCheckSum(binarySeq);
+
+// }
+// BOOST_AUTO_TEST_SUITE_END()

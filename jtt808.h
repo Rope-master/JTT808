@@ -57,13 +57,19 @@ enum MsgId {
 
 };
 
+enum MsgLength {
+    ML_HeaderNoSub = 12,
+    ML_HeaderWithSub = 16,
+    ML_BodyReg = 47
+};
+
 typedef unsigned char  BYTE;
 typedef unsigned short WORD;
 // typedef unsigned int   DWORD;
 typedef unsigned char  BCD;
 
 typedef struct _MsgBodyProperties {
-    BYTE           reservedBit;
+    BYTE           reservedBit; ///保留位
     bool           hasSubPackage;
     EncryptionType encryptionType;
     int           msgLenth;
@@ -77,15 +83,15 @@ typedef struct _MsgPackagingItem {
 typedef struct _MsgHeader {
     WORD              msgId;
     MsgBodyProperties msgBodyProperties;
-    char              terminalPhone[20];
+    char*             terminalPhone;
     WORD              flowId;
     MsgPackagingItem  msgPackagingItem; 
 } MsgHeader;
 
-typedef struct _PackageData {
-    MsgHeader msgHeader;
-    BYTE*     msgBody; 
-} PackageData;
+// typedef struct _PackageData {
+//     MsgHeader msgHeader;
+//     BYTE*     msgBody; 
+// } PackageData;
 
 typedef struct _CommonRespMsgBody {
     WORD                replyFlowId;
@@ -118,8 +124,8 @@ JTT_ERROR DoEscapeForSend(const BYTE rawBinarySeq[], BYTE binarySeq[], const int
 
 // 解析相关函数
 bool Validate(const BYTE rawBinarySeq[], const int len);
-JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], PackageData* packageData, const int len);
-JTT_ERROR EncodeForMsgHeader(const PackageData* packageData, BYTE binarySeq[]/*, const int len*/);
+JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], MsgHeader* msgHeader, const int len);
+JTT_ERROR EncodeForMsgHeader(const MsgHeader* msgHeader, BYTE binarySeq[]/*, const int len*/);
 JTT_ERROR SetCheckSum(BYTE binarySeq[], const int len);
 JTT_ERROR EncodePhoneNumber(BYTE binarySeq[], const char* phoneNumber/*, const int len*/);
 JTT_ERROR DecodePhoneNumber(const BYTE binarySeq[], char phoneNumber[]/*, const int binarySeqLen, const int phoneNumberLen*/);

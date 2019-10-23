@@ -181,7 +181,7 @@ bool Validate(const BYTE rawBinarySeq[], const int len) {
  * @param len rawBinarySeq数组长度
  * @return JTT_ERROR 错误类型。
  */
-JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], PackageData* packageData, const int len) {
+JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], MsgHeader* msgHeader, const int len) {
     if (12 > len) {
         return ERR_LENGTH_TOO_SHORT;
     } 
@@ -192,25 +192,25 @@ JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], PackageData* packageData
     
 
     // 0, 1  -   消息 ID
-    packageData->msgHeader.msgId =  ((WORD)((rawBinarySeq[0] << 8) & 0xff)) + ((WORD)(rawBinarySeq[1] & 0xff));
+    msgHeader->msgId =  ((WORD)((rawBinarySeq[0] << 8) & 0xff)) + ((WORD)(rawBinarySeq[1] & 0xff));
 
     // 2,3 - 消息体属性
 
-    packageData->msgHeader.msgBodyProperties.reservedBit = rawBinarySeq[2] & 0xc0;
-    packageData->msgHeader.msgBodyProperties.hasSubPackage =  (rawBinarySeq[2] & 0x20) ? true : false;
-    packageData->msgHeader.msgBodyProperties.encryptionType = (rawBinarySeq[2] & 0x04) ? RSA : NONE;
-    packageData->msgHeader.msgBodyProperties.msgLenth = (int)(((rawBinarySeq[2] & 0x03) << 8) + (rawBinarySeq[3] & 0xff));
+    msgHeader->msgBodyProperties.reservedBit = rawBinarySeq[2] & 0xc0;
+    msgHeader->msgBodyProperties.hasSubPackage =  (rawBinarySeq[2] & 0x20) ? true : false;
+    msgHeader->msgBodyProperties.encryptionType = (rawBinarySeq[2] & 0x04) ? RSA : NONE;
+    msgHeader->msgBodyProperties.msgLenth = (int)(((rawBinarySeq[2] & 0x03) << 8) + (rawBinarySeq[3] & 0xff));
     // 4,5,6,7,8,9 - 终端手机号
-    DecodePhoneNumber(rawBinarySeq, packageData->msgHeader.terminalPhone);
+    DecodePhoneNumber(rawBinarySeq, msgHeader->terminalPhone);
 
     // 10,11 - 消息流水号
-    packageData->msgHeader.flowId = ((WORD)((rawBinarySeq[10] << 8) & 0xff)) + ((WORD)(rawBinarySeq[11] & 0xff));
+    msgHeader->flowId = ((WORD)((rawBinarySeq[10] << 8) & 0xff)) + ((WORD)(rawBinarySeq[11] & 0xff));
 
-    if (true == packageData->msgHeader.msgBodyProperties.hasSubPackage) {
+    if (true == msgHeader->msgBodyProperties.hasSubPackage) {
         // 12, 13 消息总包数
-        packageData->msgHeader.msgPackagingItem.total = ((WORD)((rawBinarySeq[12] << 8) & 0xff)) + ((WORD)(rawBinarySeq[13] & 0xff));
+        msgHeader->msgPackagingItem.total = ((WORD)((rawBinarySeq[12] << 8) & 0xff)) + ((WORD)(rawBinarySeq[13] & 0xff));
         // 14, 15 包序号
-        packageData->msgHeader.msgPackagingItem.total = ((WORD)((rawBinarySeq[14] << 8) & 0xff)) + ((WORD)(rawBinarySeq[15] & 0xff));
+        msgHeader->msgPackagingItem.total = ((WORD)((rawBinarySeq[14] << 8) & 0xff)) + ((WORD)(rawBinarySeq[15] & 0xff));
     }
     return ERR_NONE;
 }
@@ -222,18 +222,19 @@ JTT_ERROR DecodeForMsgHeader(const BYTE rawBinarySeq[], PackageData* packageData
  * @return JTT_ERROR     错误类型。
  */
 //  * @param len        binarySeq数组长度
-JTT_ERROR EncodeForMsgHeader(const PackageData* packageData, BYTE binarySeq[]/*, const int len*/) {
+JTT_ERROR EncodeForMsgHeader(const MsgHeader* msgHeader, BYTE binarySeq[]/*, const int len*/) {
+    if (NULL == msgHeader) return ERR_INVALIDATE_MSG;
     // 0, 1  -   消息 ID
-    binarySeq[0] = (BYTE) ((packageData->msgHeader.msgId >> 8) & 0xff);
-    binarySeq[1] = (BYTE) (packageData->msgHeader.msgId  & 0xff);
+    binarySeq[0] = (BYTE) ((msgHeader->msgId >> 8) & 0xff);
+    binarySeq[1] = (BYTE) (msgHeader->msgId  & 0xff);
 
     // 2,3 - 消息体属性
-    binarySeq[2] = packageData->msgHeader.msgBodyProperties.reservedBit & 0xc0;
-    if (true == packageData->msgHeader.msgBodyProperties.hasSubPackage) {
+    binarySeq[2] = msgHeader->msgBodyProperties.reservedBit & 0xc0;
+    if (true == msgHeader->msgBodyProperties.hasSubPackage) {
         binarySeq[2] |= (1 << 5);
     }
 
-    switch(packageData->msgHeader.msgBodyProperties.encryptionType) {
+    switch(msgHeader->msgBodyProperties.encryptionType) {
         case RSA: {
             binarySeq[2] &= ~(1 << 4); 
             binarySeq[2] &= ~(1 << 3);
@@ -248,22 +249,22 @@ JTT_ERROR EncodeForMsgHeader(const PackageData* packageData, BYTE binarySeq[]/*,
         }
     }
 
-    binarySeq[2] =  packageData->msgHeader.msgBodyProperties.msgLenth & 0x300;
-    binarySeq[3] =  packageData->msgHeader.msgBodyProperties.msgLenth & 0xff;
-    EncodePhoneNumber(binarySeq, packageData->msgHeader.terminalPhone);
+    binarySeq[2] =  msgHeader->msgBodyProperties.msgLenth & 0x300;
+    binarySeq[3] =  msgHeader->msgBodyProperties.msgLenth & 0xff;
+    EncodePhoneNumber(binarySeq, msgHeader->terminalPhone);
 
     // 10,11 - 消息流水号
-    binarySeq[10] = (BYTE)((packageData->msgHeader.flowId >> 8) & 0xff);
-    binarySeq[11] = (BYTE)(packageData->msgHeader.flowId & 0xff);
+    binarySeq[10] = (BYTE)((msgHeader->flowId >> 8) & 0xff);
+    binarySeq[11] = (BYTE)(msgHeader->flowId & 0xff);
 
-    if (true == packageData->msgHeader.msgBodyProperties.hasSubPackage) {
+    if (true == msgHeader->msgBodyProperties.hasSubPackage) {
         // 12, 13 消息总包数
-        binarySeq[12] = (BYTE)((packageData->msgHeader.msgPackagingItem.total >> 8) & 0xff);
-        binarySeq[13] = (BYTE)(packageData->msgHeader.msgPackagingItem.total & 0xff);
+        binarySeq[12] = (BYTE)((msgHeader->msgPackagingItem.total >> 8) & 0xff);
+        binarySeq[13] = (BYTE)(msgHeader->msgPackagingItem.total & 0xff);
 
         // 14, 15 包序号
-        binarySeq[14] = (BYTE)((packageData->msgHeader.msgPackagingItem.packegeSeq >> 8) & 0xff);
-        binarySeq[15] = (BYTE)(packageData->msgHeader.msgPackagingItem.packegeSeq & 0xff);
+        binarySeq[14] = (BYTE)((msgHeader->msgPackagingItem.packegeSeq >> 8) & 0xff);
+        binarySeq[15] = (BYTE)(msgHeader->msgPackagingItem.packegeSeq & 0xff);
     }
 
     return ERR_NONE;
@@ -281,7 +282,7 @@ JTT_ERROR SetCheckSum(BYTE binarySeq[], const int len) {
 
     searchForIdentifierBitsStartAndEndIndex(binarySeq, len, &startIndex, &endIndex);
 
-    if (0 >= endIndex || len - 1 <= startIndex || startIndex > endIndex) {
+    if (0 >= endIndex || startIndex > endIndex) {
         return ERR_INVALIDATE_MSG;
     }
     // binarySeq[endIndex - 1] 即为校验码所在位
